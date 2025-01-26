@@ -1,3 +1,5 @@
+version: "3.9"
+
 volumes:
   n8n_storage:
   postgres_storage:
@@ -19,6 +21,7 @@ x-n8n: &service-n8n
     - N8N_PERSONALIZATION_ENABLED=false
     - N8N_ENCRYPTION_KEY
     - N8N_USER_MANAGEMENT_JWT_SECRET
+    - N8N_OLLAMA_DEFAULT_MODEL=deepseek-r1:7b
   links:
     - postgres
 
@@ -31,21 +34,27 @@ x-ollama: &service-ollama
     - 11434:11434
   volumes:
     - ollama_storage:/root/.ollama
+  environment:
+    - OLLAMA_DEFAULT_MODEL=deepseek-r1:7b
 
 x-init-ollama: &init-ollama
   image: ollama/ollama:latest
   networks: ['demo']
-  container_name: ollama-pull-deepseek
   volumes:
     - ollama_storage:/root/.ollama
   entrypoint: /bin/sh
   command:
     - "-c"
-    - "sleep 3; OLLAMA_HOST=ollama:11434 ollama pull deepseek-r1"
+    - |
+      sleep 3;
+      OLLAMA_HOST=ollama:11434 \
+      ollama pull deepseek-r1:7b && \
+      ollama pull nomic-embed-text
 
 services:
   postgres:
     image: postgres:16-alpine
+    container_name: postgres
     networks: ['demo']
     restart: unless-stopped
     environment:
