@@ -133,14 +133,23 @@ services:
 
   # New Nginx service to serve the chat interface
   nginx-chat:
-    build: .  # Build the image using the Dockerfile in the current directory
-    container_name: nginx-chat
-    ports:
-      - "8080:80"  # Expose the chat on port 8080
-    networks:
-      - backend  # Reference the backend network for communication with other services
-    volumes:
-      - ./chat:/usr/share/nginx/html  # Serve the chat HTML file from ./chat directory
+      build: .
+      container_name: nginx-chat
+      ports:
+        - "8080:80"
+      networks:
+        - demo  # Changed from 'backend' to 'demo' to match other services
+      volumes:
+        - ./chat:/usr/share/nginx/html
+        - ./nginx.conf:/etc/nginx/conf.d/default.conf  # Mount nginx configuration
+      depends_on:
+        - n8n  # Add dependency on n8n service
+
+
+
+
+
+
 
 # Networks section (should be defined at the bottom)
 networks:

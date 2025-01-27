@@ -118,112 +118,90 @@
     <script type="module">
         import { createChat } from 'https://cdn.jsdelivr.net/npm/@n8n/chat/dist/chat.bundle.es.js';
 
-        let sessionId = '';  // Initialize sessionId here
+        // Initialize session ID
+        const sessionId = crypto.randomUUID();
+        console.log('Generated session ID:', sessionId);
 
-        // Initialize the chat with the webhook and enable file uploads
+        // File input change handler
+        document.getElementById('fileInput').addEventListener('change', (e) => {
+            const uploadButton = document.getElementById('uploadButton');
+            uploadButton.disabled = !e.target.files.length;
+        });
+
+        // Initialize the chat
         createChat({
-            webhookUrl: 'http://localhost:5678/webhook-test/chat/{sessionId}', // Placeholder for sessionId
-            allowFileUploads: true,  // Enable file uploads
+            webhookUrl: `http://localhost:5678/webhook-test/chat/${sessionId}`,
+            allowFileUploads: true,
             initialMessage: 'Hello! Please upload a PDF to begin.',
-            onSessionCreated: (newSessionId) => {
-                // Update sessionId dynamically
-                sessionId = newSessionId;
-                console.log('Session ID:', sessionId);  // This logs the session ID for debugging
-
-                // Enable the message input and send button once the session is created
+            onSessionCreated: () => {
+                console.log('Session ready:', sessionId);
                 document.getElementById('sendMessageButton').disabled = false;
                 document.getElementById('chatInput').disabled = false;
-                document.getElementById('uploadButton').disabled = false;  // Enable upload button after session creation
+                document.getElementById('uploadButton').disabled = false;
             }
         });
 
-        // Handle message send
-        document.getElementById('sendMessageButton').addEventListener('click', () => {
-            const messageInput = document.getElementById('chatInput');
-            const sendButton = document.getElementById('sendMessageButton');
-
-            if (messageInput.value.trim() === '') {
-                alert('Please type a message.');
-                return;
-            }
-
-            const message = messageInput.value;
-            messageInput.value = '';  // Clear the input
-
-            // Disable the send button to avoid multiple clicks
-            sendButton.disabled = true;
-            sendButton.innerText = 'Sending...';
-
-            // Send message to the chat server (n8n webhook)
-            fetch(`http://localhost:5678/webhook-test/chat/${sessionId}`, {
-                method: 'POST',
-                body: JSON.stringify({ text: message }),
-                headers: { 'Content-Type': 'application/json' }
-            })
-            .then(response => response.json())
-            .then(data => {
-                console.log('Message sent successfully:', data);
-                document.getElementById('chat-container').innerHTML += `<div><strong>You:</strong> ${message}</div>`;
-                document.getElementById('chat-container').innerHTML += `<div><strong>Bot:</strong> ${data.reply}</div>`;
-            })
-            .catch(error => {
-                console.error('Error sending message:', error);
-                alert('Failed to send message.');
-            })
-            .finally(() => {
-                // Re-enable the send button
-                sendButton.disabled = false;
-                sendButton.innerText = 'Send';
-            });
-        });
-
-        // Handle file upload functionality
-        document.getElementById('uploadButton').addEventListener('click', () => {
+        // Handle file upload
+        document.getElementById('uploadButton').addEventListener('click', async () => {
             const fileInput = document.getElementById('fileInput');
             const uploadButton = document.getElementById('uploadButton');
+            const file = fileInput.files[0];
 
-            if (fileInput.files.length === 0) {
-                alert('Please select a PDF file to upload.');
+            if (!file) {
+                alert('Please select a PDF file.');
                 return;
             }
+
+            // Disable upload button and show loading state
+            uploadButton.disabled = true;
+            uploadButton.textContent = 'Uploading...';
 
             const formData = new FormData();
-            formData.append('file', fileInput.files[0]);
+            formData.append('file', file);
 
-            // Disable the button and show "Uploading..."
-            uploadButton.disabled = true;
-            uploadButton.innerText = 'Uploading...';
+            try {
+                console.log('Starting upload...', {
+                    file: file.name,
+                    size: file.size,
+                    sessionId: sessionId
+                });
 
-            // Ensure the sessionId is available
-            if (!sessionId) {
-                alert('Session ID not available. Try starting a new session.');
-                return;
-            }
+                const response = await fetch(`http://localhost:5678/webhook-test/chat/${sessionId}`, {
+                    method: 'POST',
+                    body: formData
+                });
 
-            // Use the correct webhook URL with the dynamic sessionId
-            const uploadUrl = `http://localhost:5678/webhook-test/chat/${sessionId}`;
+                console.log('Upload response status:', response.status);
 
-            // Send the file to the n8n webhook URL
-            fetch(uploadUrl, {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                console.log('File uploaded successfully:', data);
+                if (!response.ok) {
+                    throw new Error(`Upload failed: ${response.statusText}`);
+                }
+
+                const result = await response.json();
+                console.log('Upload successful:', result);
                 alert('File uploaded successfully!');
-            })
-            .catch(error => {
-                console.error('Error uploading file:', error);
-                alert('File upload failed.');
-            })
-            .finally(() => {
-                // Re-enable the upload button
+
+                // Clear file input
+                fileInput.value = '';
+            } catch (error) {
+                console.error('Upload error:', error);
+                alert(`Upload failed: ${error.message}`);
+            } finally {
+                // Reset button
                 uploadButton.disabled = false;
-                uploadButton.innerText = 'Upload';
-            });
+                uploadButton.textContent = 'Upload';
+            }
+        });
+
+        // Handle message sending
+        document.getElementById('sendMessageButton').addEventListener('click', () => {
+            const messageInput = document.getElementById('chatInput');
+            if (messageInput.value.trim() === '') return;
+
+            // TODO: Implement message sending
+            console.log('Sending message:', messageInput.value);
+            messageInput.value = '';
         });
     </script>
 </body>
 </html>
-
