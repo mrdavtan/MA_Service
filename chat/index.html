@@ -5,6 +5,95 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Embedded Chat</title>
     <link href="https://cdn.jsdelivr.net/npm/@n8n/chat/dist/style.css" rel="stylesheet" />
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f4f7fc;
+            color: #333;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 2rem;
+            color: #4f8dff;
+        }
+
+        #chat-container {
+            width: 80%;
+            height: 300px;
+            background-color: #fff;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            margin-top: 20px;
+            box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
+            padding: 10px;
+            overflow-y: auto;
+        }
+
+        #fileInput {
+            margin-top: 20px;
+            padding: 10px;
+        }
+
+        #uploadButton {
+            margin-top: 10px;
+            padding: 10px 20px;
+            background-color: #4f8dff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+
+        #uploadButton:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        .input-container {
+            margin-top: 20px;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .input-container input {
+            padding: 10px;
+            font-size: 1rem;
+            width: 300px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        .input-container button {
+            padding: 10px 20px;
+            background-color: #4f8dff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+
+        .input-container button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        .alert {
+            color: red;
+            font-size: 0.9rem;
+            margin-top: 10px;
+        }
+    </style>
 </head>
 <body>
     <h1>Embedded Chat</h1>
@@ -15,18 +104,80 @@
     <!-- File upload button -->
     <h3>Upload a PDF</h3>
     <input type="file" id="fileInput" accept="application/pdf">
-    <button id="uploadButton">Upload</button>
+    <button id="uploadButton" disabled>Upload</button>
+
+    <!-- Chat input -->
+    <div class="input-container">
+        <input type="text" id="chatInput" placeholder="Type a message" disabled />
+        <button id="sendMessageButton" disabled>Send</button>
+    </div>
+
+    <!-- Error Message -->
+    <div id="errorMessage" class="alert" style="display: none;"></div>
 
     <script type="module">
         import { createChat } from 'https://cdn.jsdelivr.net/npm/@n8n/chat/dist/chat.bundle.es.js';
 
+        let sessionId = '';  // Initialize sessionId here
+
         // Initialize the chat with the webhook and enable file uploads
         createChat({
-            webhookUrl: 'http://localhost:5678/webhook-test/65bcb08a-b713-4a00-8a1e-eaf7b9b14667',
-            allowFileUploads: true,
+            webhookUrl: 'http://localhost:5678/webhook-test/chat/{sessionId}', // Placeholder for sessionId
+            allowFileUploads: true,  // Enable file uploads
+            initialMessage: 'Hello! Please upload a PDF to begin.',
+            onSessionCreated: (newSessionId) => {
+                // Update sessionId dynamically
+                sessionId = newSessionId;
+                console.log('Session ID:', sessionId);  // This logs the session ID for debugging
+
+                // Enable the message input and send button once the session is created
+                document.getElementById('sendMessageButton').disabled = false;
+                document.getElementById('chatInput').disabled = false;
+                document.getElementById('uploadButton').disabled = false;  // Enable upload button after session creation
+            }
         });
 
-        // Handle file upload
+        // Handle message send
+        document.getElementById('sendMessageButton').addEventListener('click', () => {
+            const messageInput = document.getElementById('chatInput');
+            const sendButton = document.getElementById('sendMessageButton');
+
+            if (messageInput.value.trim() === '') {
+                alert('Please type a message.');
+                return;
+            }
+
+            const message = messageInput.value;
+            messageInput.value = '';  // Clear the input
+
+            // Disable the send button to avoid multiple clicks
+            sendButton.disabled = true;
+            sendButton.innerText = 'Sending...';
+
+            // Send message to the chat server (n8n webhook)
+            fetch(`http://localhost:5678/webhook-test/chat/${sessionId}`, {
+                method: 'POST',
+                body: JSON.stringify({ text: message }),
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Message sent successfully:', data);
+                document.getElementById('chat-container').innerHTML += `<div><strong>You:</strong> ${message}</div>`;
+                document.getElementById('chat-container').innerHTML += `<div><strong>Bot:</strong> ${data.reply}</div>`;
+            })
+            .catch(error => {
+                console.error('Error sending message:', error);
+                alert('Failed to send message.');
+            })
+            .finally(() => {
+                // Re-enable the send button
+                sendButton.disabled = false;
+                sendButton.innerText = 'Send';
+            });
+        });
+
+        // Handle file upload functionality
         document.getElementById('uploadButton').addEventListener('click', () => {
             const fileInput = document.getElementById('fileInput');
             const uploadButton = document.getElementById('uploadButton');
@@ -43,8 +194,17 @@
             uploadButton.disabled = true;
             uploadButton.innerText = 'Uploading...';
 
+            // Ensure the sessionId is available
+            if (!sessionId) {
+                alert('Session ID not available. Try starting a new session.');
+                return;
+            }
+
+            // Use the correct webhook URL with the dynamic sessionId
+            const uploadUrl = `http://localhost:5678/webhook-test/chat/${sessionId}`;
+
             // Send the file to the n8n webhook URL
-            fetch('http://localhost:5678/webhook-test/65bcb08a-b713-4a00-8a1e-eaf7b9b14667', {
+            fetch(uploadUrl, {
                 method: 'POST',
                 body: formData
             })
@@ -52,7 +212,6 @@
             .then(data => {
                 console.log('File uploaded successfully:', data);
                 alert('File uploaded successfully!');
-                location.reload();  // Reload page after success
             })
             .catch(error => {
                 console.error('Error uploading file:', error);
