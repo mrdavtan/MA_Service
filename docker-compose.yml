@@ -1,15 +1,15 @@
+version: '3.8'
+
+# Volumes for persistent storage
 volumes:
   n8n_storage:
   postgres_storage:
   ollama_storage:
   qdrant_storage:
 
-networks:
-  demo:
-
 x-n8n: &service-n8n
   image: n8nio/n8n:latest
-  networks: ['demo']
+  networks: ['demo']  # Reference the 'demo' network here
   environment:
     - DB_TYPE=postgresdb
     - DB_POSTGRESDB_HOST=postgres
@@ -25,7 +25,7 @@ x-n8n: &service-n8n
 x-ollama: &service-ollama
   image: ollama/ollama:latest
   container_name: ollama
-  networks: ['demo']
+  networks: ['demo']  # Ensure this service uses the 'demo' network
   restart: unless-stopped
   ports:
     - 11434:11434
@@ -34,7 +34,7 @@ x-ollama: &service-ollama
 
 x-init-ollama: &init-ollama
   image: ollama/ollama:latest
-  networks: ['demo']
+  networks: ['demo']  # Ensure this service uses the 'demo' network
   container_name: ollama-pull-llama
   volumes:
     - ollama_storage:/root/.ollama
@@ -50,7 +50,8 @@ x-init-ollama: &init-ollama
 services:
   postgres:
     image: postgres:16-alpine
-    networks: ['demo']
+    container_name: postgres
+    networks: ['demo']  # Reference 'demo' network here
     restart: unless-stopped
     environment:
       - POSTGRES_USER
@@ -82,7 +83,7 @@ services:
     container_name: n8n
     restart: unless-stopped
     ports:
-      - 5678:5678
+      - 5678:5678  # Expose n8n UI on port 5678
     volumes:
       - n8n_storage:/home/node/.n8n
       - ./n8n/backup:/backup
@@ -96,7 +97,7 @@ services:
   qdrant:
     image: qdrant/qdrant
     container_name: qdrant
-    networks: ['demo']
+    networks: ['demo']  # Ensure this service uses the 'demo' network
     restart: unless-stopped
     ports:
       - 6333:6333
@@ -129,4 +130,22 @@ services:
     <<: *init-ollama
     depends_on:
       - ollama-gpu
+
+  # New Nginx service to serve the chat interface
+  nginx-chat:
+    build: .  # Build the image using the Dockerfile in the current directory
+    container_name: nginx-chat
+    ports:
+      - "8080:80"  # Expose the chat on port 8080
+    networks:
+      - backend  # Reference the backend network for communication with other services
+    volumes:
+      - ./chat:/usr/share/nginx/html  # Serve the chat HTML file from ./chat directory
+
+# Networks section (should be defined at the bottom)
+networks:
+  demo:  # Ensure the 'demo' network is defined here
+    driver: bridge
+  backend:
+    driver: bridge
 
