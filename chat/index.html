@@ -12,37 +12,56 @@
     <!-- Chat container where the chat UI will be rendered -->
     <div id="chat-container"></div>
 
-    <!-- Simple Test Button -->
-    <h3>Test Communication with Backend</h3>
-    <button id="testButton">Send Test Request</button>
+    <!-- File upload button -->
+    <h3>Upload a PDF</h3>
+    <input type="file" id="fileInput" accept="application/pdf">
+    <button id="uploadButton">Upload</button>
 
     <script type="module">
         import { createChat } from 'https://cdn.jsdelivr.net/npm/@n8n/chat/dist/chat.bundle.es.js';
 
         // Initialize the chat with the webhook and enable file uploads
         createChat({
-            webhookUrl: 'http://localhost:5678/webhook-test/65bcb08a-b713-4a00-8a1e-eaf7b9b14667',  // Consistent URL path for chat
+            webhookUrl: 'http://localhost:5678/webhook-test/65bcb08a-b713-4a00-8a1e-eaf7b9b14667',
             allowFileUploads: true,
         });
 
-        // Test Communication with Backend
-        document.getElementById('testButton').addEventListener('click', () => {
-            // Send a simple test POST request to n8n webhook (consistent path with chat)
-            fetch('http://localhost:5678/webhook-test/65bcb08a-b713-4a00-8a1e-eaf7b9b14667', {  // Consistent URL path for test
+        // Handle file upload
+        document.getElementById('uploadButton').addEventListener('click', () => {
+            const fileInput = document.getElementById('fileInput');
+            const uploadButton = document.getElementById('uploadButton');
+
+            if (fileInput.files.length === 0) {
+                alert('Please select a PDF file to upload.');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+
+            // Disable the button and show "Uploading..."
+            uploadButton.disabled = true;
+            uploadButton.innerText = 'Uploading...';
+
+            // Send the file to the n8n webhook URL
+            fetch('http://localhost:5678/webhook-test/65bcb08a-b713-4a00-8a1e-eaf7b9b14667', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ test: 'Hello, n8n!' })
+                body: formData
             })
             .then(response => response.json())
             .then(data => {
-                console.log('Response from backend:', data);  // Check if we get the correct response
-                alert('Test success! Check the console for details.');
+                console.log('File uploaded successfully:', data);
+                alert('File uploaded successfully!');
+                location.reload();  // Reload page after success
             })
             .catch(error => {
-                console.error('Error:', error);
-                alert('Test failed! Check the console for details.');
+                console.error('Error uploading file:', error);
+                alert('File upload failed.');
+            })
+            .finally(() => {
+                // Re-enable the upload button
+                uploadButton.disabled = false;
+                uploadButton.innerText = 'Upload';
             });
         });
     </script>
